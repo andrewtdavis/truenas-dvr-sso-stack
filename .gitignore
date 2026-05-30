@@ -1,0 +1,19 @@
+# Secrets and local config - never commit
+*.conf.local
+secrets.env
+cloudflare.ini
+*.api-key
+
+# Recyclarr local state / repo clone
+repositories/
+state/
+logs/
+*.log
+
+# Pacer state
+*.state.tsv
+
+# Backups
+*.bak
+*.bak.*
+.idea/

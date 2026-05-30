@@ -1,6 +1,6 @@
 # Self-Hosted Media / DVR Stack on TrueNAS SCALE
 
-A single, upgrade-survivable Docker Compose stack for an *arr-based media automation
+A single, upgrade-survivable Docker Compose stack for a *arr-based media automation
 suite, fronted by **one** reverse proxy with **single sign-on**, on an **isolated
 internal network** so no application is directly reachable except through the gate.
 
@@ -44,7 +44,7 @@ each application.
 11. [Custom formats and quality (Recyclarr)](#custom-formats-and-quality-recyclarr)
 12. [Migrating from existing catalog apps](#migrating-from-existing-catalog-apps)
 13. [Scripts reference](#scripts-reference)
-14. [Hard-won gotchas](#hard-won-gotchas)
+14. [Gotchas and Landmines](#gotchas-and-landmines)
 15. [Security notes](#security-notes)
 
 ---
@@ -145,7 +145,7 @@ not at all.
 > Some images do **not** honor a custom internal port via environment variable and
 > serve on their image default instead (notably Tautulli on `8181`, Seerr on `5055`).
 > For those, the contract is "match the image default and point the proxy there"
-> rather than forcing the catalog port. See [gotchas](#hard-won-gotchas).
+> rather than forcing the catalog port. See [gotchas](#gotchas-and-landmines).
 
 ---
 
@@ -519,7 +519,7 @@ a fresh install because the app already has a login configured:
   `[misc]` section of `sabnzbd.ini` - leave the `[servers]` Usenet credentials alone),
   in addition to setting `inet_exposure = 3`. Edit with the container stopped (SABnzbd
   rewrites its `.ini` on shutdown), then add the container name to `host_whitelist`.
-  See [gotchas](#hard-won-gotchas) for the full SABnzbd checklist.
+  See [gotchas](#gotchas-and-landmines) for the full SABnzbd checklist.
 
 **Dump and delete the catalog apps, preserving data:**
 ```bash
@@ -554,6 +554,44 @@ header block with full usage.
 
 Example configs are in [`examples/`](examples/). Copy, fill in, and keep the filled
 copies out of version control (see `.gitignore`).
+
+---
+
+## Gotchas and Landmines
+
+These cost real debugging time; they are the reason this repo exists.
+
+- **Some images ignore a custom internal port.** Tautulli serves on `8181` and Seerr
+  on `5055` regardless of a `PORT` env; point the proxy at the image default instead
+  of forcing the catalog port. The *arr (LinuxServer/home-operations) and SABnzbd do
+  honor their configured ports.
+- **Non-root images crash on wrong ownership / a stray `user:` directive.** Tautulli,
+  Seerr and similar must start as root and drop to `PUID/PGID` themselves - do **not**
+  add a `user:` directive for them; just set `PUID/PGID` and `chown` the config dir.
+- **SWAG nests its real config under `config/`.** Mount the directory that contains
+  `dns-conf/` and `nginx/`, or it scaffolds empty defaults and the cert fails with a
+  `9103` Cloudflare error.
+- **SABnzbd is uniquely fiddly behind a proxy:**
+  - "No login" requires **clearing the stored web username/password**, not just a
+    permissive `inet_exposure` mode. A present credential is what enables the prompt.
+  - `inet_exposure = 3` keeps the API working while removing the UI login; the very
+    lowest modes also restrict the API and break the *arr connection.
+  - On a dual-stack internal network it may be reached over IPv6; its `local_ranges`
+    matching is IPv4-centric, so the UI hop can loop on login. Pin the proxy upstream
+    to IPv4 (Docker resolver `ipv6=off` + variable `proxy_pass`); its outbound Usenet
+    over IPv6 is a separate path and unaffected.
+  - When connected by hostname, the container name must be in `host_whitelist`
+    (IP connections bypass this check; hostname connections do not).
+  - SABnzbd rewrites its `.ini` on shutdown - edit it with the container **stopped**,
+    then verify the running value.
+- **Inter-app calls to the *arr must include the URL base** (`/sonarr`); the API is
+  served under the base. Forgetting it yields a "wrong URL base" or connection error.
+- **Overseerr is now Seerr.** Overseerr/Jellyseerr merged into the maintained Seerr
+  (`ghcr.io/seerr-team/seerr`); it auto-migrates existing appdata on first start, runs
+  non-root, and needs `init: true`. Migrate by copying the old config dataset to a new
+  one (cold backup) rather than in place.
+- **Cross-pool imports are copy-and-delete, not hardlinks** - upgrades re-download and
+  re-copy. Keep downloads and library on the same pool if you want instant moves.
 
 ---
 

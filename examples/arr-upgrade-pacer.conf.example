@@ -1,0 +1,13 @@
+# Copy to arr-upgrade-pacer.conf and edit. Referenced via --config.
+# URLs use the reverse-proxy /api paths, which bypass the auth gate, so this
+# works from a host shell with no direct route to the container network.
+
+SONARR_URL="https://dvr.example.com/sonarr"
+RADARR_URL="https://dvr.example.com/radarr"
+
+# API keys are optional. If omitted, they are read from the config.xml paths
+# below (adjust to your app-volumes location).
+# SONARR_API_KEY="..."
+# RADARR_API_KEY="..."
+SONARR_CONFIG_XML="/mnt/tank/app-volumes/sonarr/config.xml"
+RADARR_CONFIG_XML="/mnt/tank/app-volumes/radarr/config.xml"

@@ -1,0 +1,254 @@
+# ---------------------------------------------------------------------------
+# File:        docker-compose.yaml
+# Purpose:     Combined DVR stack on a single shared internal network. SWAG is
+#              the only service publishing host ports; every other service is
+#              reachable only over the internal network (inbound) and egresses
+#              directly (outbound). Inter-service references use container names.
+#
+# UID model:   Media-touching apps and the proxy config run as 1000:1000
+#              (myuser), matching library ownership. Cleanuparr is API-only and
+#              runs as 568. Requestrr runs as root, as its image expects.
+#
+# Images:      home-operations images use the "rolling" tag; others use their
+#              maintainer rolling/latest tag. Update the whole stack with:
+#                docker compose pull && docker compose up -d
+#              Recommendation: pin to a digest if a known-good lock is preferred
+#              over always-newest.
+#
+# Ports:       Internal listen ports are unchanged from the prior deployment, so
+#              connectors change host only (10.0.0.2:<port> -> <name>:<port>).
+#
+# Notes:       Image-baked build variables (PYTHON_VERSION, NODE_VERSION, etc.)
+#              are intentionally omitted; only operational variables are set.
+#              Verify the SWAG block against the current SWAG app definition, as
+#              its certificate and validation settings were not in the extract.
+#
+# ---------------------------------------------------------------------------
+
+services:
+
+  sonarr:
+    image: ghcr.io/home-operations/sonarr:rolling
+    container_name: sonarr
+    user: "1000:1000"
+    environment:
+      - TZ=America/Los_Angeles
+      - UMASK=002
+      - SONARR__APP__INSTANCENAME=Sonarr
+      - SONARR__SERVER__PORT=30027
+      - SONARR__UPDATE__BRANCH=develop
+      - DOTNET_EnableDiagnostics=0
+    volumes:
+      - "/mnt/tank/app-volumes/sonarr:/config"
+      - "/mnt/tank/staging/tv-import:/tank/tv-import"
+      - "/mnt/tank/media/tvshows:/tank/tvshows"
+      - "/mnt/cache/downloads:/cache"
+    networks: [medianet]
+    restart: unless-stopped
+
+  radarr:
+    image: ghcr.io/home-operations/radarr:rolling
+    container_name: radarr
+    user: "1000:1000"
+    environment:
+      - TZ=America/Los_Angeles
+      - UMASK=002
+      - RADARR__APP__INSTANCENAME=Radarr
+      - RADARR__SERVER__PORT=30025
+      - RADARR__UPDATE__BRANCH=develop
+      - DOTNET_EnableDiagnostics=0
+    volumes:
+      - "/mnt/tank/app-volumes/radarr:/config"
+      - "/mnt/tank/media/dcom-movies:/tank/dcom-movies"
+      - "/mnt/tank/media/movies:/tank/movies"
+      - "/mnt/tank/media/plays:/tank/plays"
+      - "/mnt/tank/staging/movies-import:/tank/movies-import"
+      - "/mnt/cache/downloads:/cache"
+    networks: [medianet]
+    restart: unless-stopped
+
+  lidarr:
+    image: ghcr.io/home-operations/lidarr:rolling
+    container_name: lidarr
+    user: "1000:1000"
+    environment:
+      - TZ=America/Los_Angeles
+      - UMASK=002
+      - LIDARR__APP__INSTANCENAME=Lidarr
+      - LIDARR__SERVER__PORT=30014
+      - LIDARR__UPDATE__BRANCH=develop
+      - DOTNET_EnableDiagnostics=0
+    volumes:
+      - "/mnt/tank/app-volumes/lidarr:/config"
+      - "/mnt/tank/media/music:/tank/music"
+      - "/mnt/cache/downloads:/cache"
+    networks: [medianet]
+    restart: unless-stopped
+
+  prowlarr:
+    image: ghcr.io/home-operations/prowlarr:rolling
+    container_name: prowlarr
+    user: "1000:1000"
+    environment:
+      - TZ=America/Los_Angeles
+      - UMASK=002
+      - PROWLARR__APP__INSTANCENAME=Prowlarr
+      - PROWLARR__SERVER__PORT=30050
+      - PROWLARR__UPDATE__BRANCH=develop
+      - DOTNET_EnableDiagnostics=0
+    volumes:
+      - "/mnt/tank/app-volumes/prowlarr:/config"
+    networks: [medianet]
+    restart: unless-stopped
+
+  sabnzbd:
+    image: ghcr.io/home-operations/sabnzbd:rolling
+    container_name: sabnzbd
+    user: "1000:1000"
+    environment:
+      - TZ=America/Los_Angeles
+      - UMASK=002
+      - SABNZBD__PORT=30055
+      - SABNZBD__ADDRESS=[::]
+    volumes:
+      - "/mnt/tank/app-volumes/sabnzbd:/config"
+      - "/mnt/tank/staging:/tank/staging"
+      - "/mnt/cache/downloads:/cache"
+    networks: [medianet]
+    restart: unless-stopped
+
+  tautulli:
+    image: tautulli/tautulli:latest
+    container_name: tautulli
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Los_Angeles
+      - TAUTULLI_DOCKER=True
+    volumes:
+      - "/mnt/tank/app-volumes/tautulli:/config"
+    networks: [medianet]
+    restart: unless-stopped
+
+  seerr:
+    image: ghcr.io/seerr-team/seerr:latest
+    container_name: seerr
+    init: true
+    environment:
+      - TZ=America/Los_Angeles
+      - PORT=5055
+    volumes:
+      - "/mnt/tank/app-volumes/seerr:/app/config"
+    networks: [medianet]
+    restart: unless-stopped
+
+  requestrr:
+    image: thomst08/requestrr:latest
+    container_name: requestrr
+    environment:
+      - TZ=Etc/UTC
+      - ASPNETCORE_URLS=http://*:4545
+    volumes:
+      - "/mnt/tank/app-volumes/requestrr:/root/config"
+    networks: [medianet]
+    restart: unless-stopped
+
+  recyclarr:
+    image: recyclarr/recyclarr:latest
+    container_name: recyclarr
+    user: "1000:1000"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Los_Angeles
+      - UMASK=002
+      - RECYCLARR_CONFIG_DIR=/config
+      - RECYCLARR_CREATE_CONFIG=false
+      - CRON_SCHEDULE=@daily
+    volumes:
+      - "/mnt/tank/app-volumes/recyclarr:/config"
+    networks: [medianet]
+    restart: unless-stopped
+
+  # --- New services -------------------------------------------------------
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Los_Angeles
+      - UMASK=002
+    volumes:
+      - "/mnt/tank/app-volumes/bazarr:/config"
+      - "/mnt/tank/media/tvshows:/tank/tvshows"
+      - "/mnt/tank/media/movies:/tank/movies"
+      - "/mnt/tank/media/dcom-movies:/tank/dcom-movies"
+      - "/mnt/tank/media/plays:/tank/plays"
+    networks: [medianet]
+    restart: unless-stopped
+    # internal port: proxy uses bazarr:6767
+
+  cleanuparr:
+    image: ghcr.io/cleanuparr/cleanuparr:latest
+    container_name: cleanuparr
+    environment:
+      - PUID=568
+      - PGID=568
+      - TZ=America/Los_Angeles
+      - PORT=11011
+      - BASE_PATH=/cleanuparr
+    volumes:
+      - "/mnt/tank/app-volumes/cleanuparr:/config"
+    networks: [medianet]
+    restart: unless-stopped
+    # internal port: proxy uses cleanuparr:11011
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    environment:
+      - TZ=America/Los_Angeles
+      - LOG_LEVEL=info
+    networks: [medianet]
+    restart: unless-stopped
+    # internal only: Prowlarr proxy host is http://flaresolverr:8191
+
+  # --- Front door ---------------------------------------------------------
+  # VERIFY against the current SWAG app: URL, validation/cert plugin, and any
+  # extra env were not in the extract. Keep the dedicated .12 binding.
+
+  swag:
+    image: lscr.io/linuxserver/swag:latest
+    container_name: swag
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - PUID=568
+      - PGID=568
+      - TZ=America/Los_Angeles
+      - URL=example.com
+      - SUBDOMAINS=wildcard
+      - VALIDATION=dns
+      - DNSPLUGIN=cloudflare
+      - CERTPROVIDER=letsencrypt
+      - ONLY_SUBDOMAINS=false
+      - STAGING=false
+    volumes:
+      - "/mnt/tank/app-volumes/swag/config:/config"
+    ports:
+      - "10.0.0.4:443:443"
+      - "10.0.0.4:80:80"
+    networks: [medianet]
+    restart: unless-stopped
+
+networks:
+  medianet:
+    driver: bridge
+    enable_ipv6: true
+    ipam:
+      config:
+        # Example ULA prefix. Recommendation: generate your own at e.g.
+        # https://www.ungleich.ch/en-us/cms/blog/2019/01/22/an-ula-generator/ for uniqueness.
+        - subnet: fdd0:0:0:100::/64

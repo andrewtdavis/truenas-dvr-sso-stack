@@ -1,0 +1,5 @@
+# SWAG DNS-01 (Cloudflare) credential. Place the real file at:
+#   <swag-config>/dns-conf/cloudflare.ini   (chmod 600)
+# Use a SCOPED API TOKEN, not the Global API Key.
+# Token needs: Zone.Zone:Read + Zone.DNS:Edit for your zone only.
+dns_cloudflare_api_token = REPLACE_WITH_SCOPED_CLOUDFLARE_TOKEN

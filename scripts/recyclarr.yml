@@ -1,0 +1,151 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/recyclarr/recyclarr/master/schemas/config-schema.json
+# ---------------------------------------------------------------------------
+# Recyclarr configuration - media DVR stack
+#
+# Synopsis:
+#   Syncs TRaSH-Guide custom formats and scores into Sonarr and Radarr.
+#   Goal: prefer x265/HEVC to save space - preferred at 4K/UHD (native codec),
+#   only mildly at HD with lossy transcodes penalized. Tune scores to taste.
+#
+# Connections:
+#   Container names over medianet with each app's URL base appended.
+#
+# Goal - x265 (space saving):
+#   4K/UHD: "x265 (no HDR/DV)" scored strongly positive (native 4K codec).
+#   HD: "x265" scored mildly positive, but "x265 (HD)" transcode-catcher scored
+#   negative so low-bitrate transcodes are rejected. Net: good native HD x265 is
+#   taken, junk transcodes are not.
+#
+# Upgrades:
+#   Cross-pool imports (cache SSD -> HDD) mean every upgrade is a full
+#   re-download plus copy-and-delete. Profiles needing upgrades enabled must be
+#   switched on in the app UI (Recyclarr does not toggle upgradeAllowed).
+#
+# ---------------------------------------------------------------------------
+
+sonarr:
+  series:
+    base_url: http://sonarr:30027/sonarr
+    api_key: REPLACE_WITH_SONARR_API_KEY
+
+    quality_definition:
+      type: series
+
+    delete_old_custom_formats: false
+
+    custom_formats:
+      # Unwanted - strong negative on all real profiles
+      - trash_ids:
+          - 85c61753df5da1fb2aab6f2a47426b09 # BR-DISK
+          - 9c11cd3f07101cdba90a2d81cf0e56b4 # LQ
+          - e2315f990da2e2cbfc9fa5b7a6fcfe48 # LQ (Release Title)
+        assign_scores_to:
+          - name: HD-720p
+            score: -10000
+          - name: HD-1080p
+            score: -10000
+          - name: HD Only - 720p/1080p
+            score: -10000
+          - name: Any to 1080p
+            score: -10000
+          - name: Any to 720p
+            score: -10000
+          - name: Ultra-HD
+            score: -10000
+          - name: Any to UltraHD
+            score: -10000
+
+      # 4K: prefer x265 (native codec, real space savings)
+      - trash_ids:
+          - 9b64dff695c2115facf1b6ea59c9bd07 # x265 (no HDR/DV)
+        assign_scores_to:
+          - name: Ultra-HD
+            score: 500
+          - name: Any to UltraHD
+            score: 500
+
+      # HD: mild x265 preference (tune to taste)
+      - trash_ids:
+          - c9eafd50846d299b862ca9bb6ea91950 # x265
+        assign_scores_to:
+          - name: HD-720p
+            score: 50
+          - name: HD-1080p
+            score: 50
+          - name: HD Only - 720p/1080p
+            score: 50
+
+      # HD: penalize x265 transcodes (outweighs the mild bonus above)
+      - trash_ids:
+          - 47435ece6b99a0b477caf360e79ba0bb # x265 (HD) - transcode catcher
+        assign_scores_to:
+          - name: HD-720p
+            score: -100
+          - name: HD-1080p
+            score: -100
+          - name: HD Only - 720p/1080p
+            score: -100
+          - name: Any to 1080p
+            score: -100
+          - name: Any to 720p
+            score: -100
+
+radarr:
+  movies:
+    base_url: http://radarr:30025/radarr
+    api_key: REPLACE_WITH_RADARR_API_KEY
+
+    quality_definition:
+      type: movie
+
+    delete_old_custom_formats: false
+
+    custom_formats:
+      # Unwanted - strong negative on all real profiles
+      - trash_ids:
+          - ed38b889b31be83fda192888e2286d83 # BR-DISK
+          - 90a6f9a284dff5103f6346090e6280c8 # LQ
+          - e204b80c87be9497a8a6eaff48f72905 # LQ (Release Title)
+          - b8cd450cbfa689c0259a01d9e29ba3d6 # 3D
+        assign_scores_to:
+          - name: HD-720p
+            score: -10000
+          - name: HD-1080p
+            score: -10000
+          - name: HD - 720p/1080p
+            score: -10000
+          - name: Release to HD
+            score: -10000
+          - name: Ultra-HD
+            score: -10000
+
+      # 4K: prefer x265 (native codec, real space savings)
+      - trash_ids:
+          - 839bea857ed2c0a8e084f3cbdbd65ecb # x265 (no HDR/DV)
+        assign_scores_to:
+          - name: Ultra-HD
+            score: 500
+
+      # HD: mild x265 preference (tune to taste)
+      - trash_ids:
+          - 9170d55c319f4fe40da8711ba9d8050d # x265
+        assign_scores_to:
+          - name: HD-720p
+            score: 50
+          - name: HD-1080p
+            score: 50
+          - name: HD - 720p/1080p
+            score: 50
+
+      # HD: penalize x265 transcodes (outweighs the mild bonus above)
+      - trash_ids:
+          - dc98083864ea246d05a42df0d05f81cc # x265 (HD) - transcode catcher
+        assign_scores_to:
+          - name: HD-720p
+            score: -100
+          - name: HD-1080p
+            score: -100
+          - name: HD - 720p/1080p
+            score: -100
+          - name: Release to HD
+            score: -100
